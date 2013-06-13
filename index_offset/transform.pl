@@ -2,16 +2,35 @@
 
 use strict;
 
+use lib '../libs';
+
 use Roman;
 use XML::Twig;
+
+use Getopt::Long;
+
+my $top_roman = '';
+my $offset = 0;
+
+GetOptions(
+    'top_roman=s' => \$top_roman,
+    'offset=i'    => \$offset,
+    help          => sub { HELP() },
+) or HELP("Invalid Option");
+
+my $file = shift @ARGV;
+
+HELP("Please provide an input file") if (! $file);
+HELP("Please provide an offset") if (! $offset);
+HELP("Please provide a valid top roman") if ($offset && ! isroman($top_roman));
 
 sub transform {
     my ($num) = @_;
 
-    $num -= 4;
+    $num += $offset;
 
     if ($num < 1) {
-        return (roman(arabic("xiv") + $num), 1);
+        return (roman(arabic($top_roman) + $num), 1);
     } else {
         return ($num, 0);
     }
@@ -22,7 +41,7 @@ my $twig = XML::Twig->new(
     pretty_print => 'nsgmls',
 );
 
-$twig->parsefile('in.xml');
+$twig->parsefile($file);
 
 my $root = $twig->root;
 
@@ -72,3 +91,42 @@ foreach my $elt ($root->find_by_tag_name('w:t')) {
 }
 
 $root->print();
+
+sub HELP {
+    my ($msg) = @_;
+
+    my $usage = <<USAGE ;
+$0 - [OPTIONS] FILE > [OUTPUT]
+
+Updates an index file (Word 2003 XML Document) to uniformly adjust all page
+references up or down.
+
+Caveats:
+    * For negative offsets, adjusts negative page numbers into a roman numeral
+      space (so page 0 converts to the provided --top_roman)
+    * Roman numeral pages aren't affected
+    * Roman numerals are italicized
+    * Index entries are of the form: foo bar baz, 1, 2, 55-120
+        * nothing before the first comma per entry is affected
+
+FILE
+    The file to parse
+
+OPTIONS
+    --offset     Offset for index entries.  May be negative
+    --top_roman  The top roman numeral.  Required for negative offsets
+
+    --help       This help information
+USAGE
+
+    if ($msg) {
+        warn $msg;
+        warn $usage;
+
+        exit 1;
+    } else {
+        print $usage;
+
+        exit 0;
+    }
+}
